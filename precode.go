@@ -33,6 +33,7 @@ func Generator(ctx context.Context, ch chan<- int64, fn func(int64)) {
 // Worker читает число из канала in и пишет его в канал out.
 func Worker(in <-chan int64, out chan<- int64) {
 	// 2. Функция Worker
+	// Что лучше, первое или второе?
 	for v := range in {
 		mu.Lock()
 		out <- v
@@ -40,7 +41,18 @@ func Worker(in <-chan int64, out chan<- int64) {
 		time.Sleep(time.Millisecond)
 	}
 	close(out)
-	// v, ok := <-in
+
+	// for {
+	// 	v, ok := <-in
+	// 	if !ok {
+	// 		close(out)
+	// 		return
+	// 	}
+	// 	mu.Lock()
+	// 	out <- v
+	// 	mu.Unlock()
+	// 	time.Sleep(time.Millisecond)
+	// }
 }
 
 func main() {
