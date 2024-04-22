@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -43,22 +44,19 @@ func Worker(in <-chan int64, out chan<- int64) {
 
 func main() {
 	chIn := make(chan int64)
-	var mu sync.Mutex
 
 	// 3. Создание контекста
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
 	// для проверки будем считать количество и сумму отправленных чисел
-	var inputSum int64   // сумма сгенерированных чисел
-	var inputCount int64 // количество сгенерированных чисел
+	var inputSum atomic.Int64   // сумма сгенерированных чисел
+	var inputCount atomic.Int64 // количество сгенерированных чисел
 
 	// генерируем числа, считая параллельно их количество и сумму
 	go Generator(ctx, chIn, func(i int64) {
-		mu.Lock()
-		defer mu.Unlock()
-		inputSum += i
-		inputCount++
+		inputSum.Add(i)
+		inputCount.Add(1)
 	})
 
 	const NumOut = 5 // количество обрабатывающих горутин и каналов
@@ -96,17 +94,17 @@ func main() {
 		close(chOut)
 	}()
 
-	var count int64 // количество чисел результирующего канала
-	var sum int64   // сумма чисел результирующего канала
+	var count atomic.Int64 // количество чисел результирующего канала
+	var sum atomic.Int64   // сумма чисел результирующего канала
 
 	// 5. Читаем числа из результирующего канала
 	for v := range chOut {
-		count++
-		sum += v
+		count.Add(1)
+		sum.Add(v)
 	}
 
-	fmt.Println("Количество чисел", inputCount, count)
-	fmt.Println("Сумма чисел", inputSum, sum)
+	fmt.Println("Количество чисел", inputCount.Load(), count.Load())
+	fmt.Println("Сумма чисел", inputSum.Load(), sum.Load())
 	fmt.Println("Разбивка по каналам", amounts)
 
 	// проверка результатов
@@ -117,9 +115,9 @@ func main() {
 		log.Fatalf("Ошибка: количество чисел не равно: %d != %d\n", inputCount, count)
 	}
 	for _, v := range amounts {
-		inputCount -= v
+		inputCount.Store(inputCount.Load() - v)
 	}
-	if inputCount != 0 {
+	if inputCount.Load() != 0 {
 		log.Fatalf("Ошибка: разделение чисел по каналам неверное\n")
 	}
 }
